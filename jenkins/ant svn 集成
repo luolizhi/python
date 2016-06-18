@@ -1,0 +1,571 @@
+ant svn 集成
+一直想让项目的编译自动化，由于代码服务器使用的是SVN,同时脚本用的是ANT，就涉及到如何在ANT中来访问SVN,checkout/commit/update/export 等。
+    在网上查了很多资料，发现都没有介绍原理，只是生搬硬套，很容易搞错，却不知错在哪里。通过研究ANT,SVN,SVNANT等几方面的原始英文文档，这里准备详细说明一下。
+    首先，说一下我的配置：
+ANT ,1.8.4
+SVN, 1.7.8
+SVNANT:1.3.1  ，
+时间：2012.12.22（传说中的玛雅人预测的世界末日）。
+   ANT 想要和SVN集成到一起，其实至少有以下三种方案：
+方案一：直接利用ANT 的命令 <exec> 来完成。
+         需要注意的是，这需要在运行ANT的机器上安装SVN，同时，此种方式严重依赖操作系统。
+         下面以WINDOWS为例。
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="test">
+    <property name="svn-url" value="svn://localhost"></property>
+    <target name="hello">
+        <echo message="hello ant!"></echo>
+        <exec  executable="svn" >  //<!-- 直接调用 svn.exe,注意svn.exe要能够通过path访问到-->
+          <arg line="co ${svn-url}/test1/src test2/src"/>  <!-- 设置svn 的命令行参数 -->
+        </exec>
+
+    </target>
+</project>
+      怎么样，还是挺简单吧？！
+
+
+Ant工具中的常用的核心任务。 
+
+文章分类:Java编程 
+  在Ant工具中每一个任务封装了具体要执行的功能，是Ant工具的基本执行单位。Ant工具内提供很多有用的任务，项目开发时可利用Ant工具提供的内置任务方便地实现自动构建等功能。本章主要讲解Ant工具的核心任务及其作用，便于读者根据功能选择使用。 
+
+4.1  Ant Task：Ant任务（执行多个构件文件） 
+    如果需要在一个构件文件中通过Ant命令去执行另一个Ant项目，或者说要执行本项目的子项目的构件文件。这时Ant这个核心任务就派上用场了。简单地说Ant任务的作用就相当于在命令行通过Ant命令执行构件文件。值得注意的是Ant任务依赖于target元素，需要在某个target元素中使用，不能在target元素外独立使用。 
+    Ant任务还可以实现类似Java程序间的继承关系，不过对于这个核心任务来说只继承property元素和reference属性。举个例子说，项目A中包含通过Ant任务去执行的项目B，而项目B中需要用到项目A中的属性C，那么可以通过设置的Ant任务中的inheritAll属性，使得在B项目中可以使用项目A中的属性C。从另一方面看，这也符合XP（极限）编程中的细分功能的思想，可以把大的项目切分为几分小项目，然后通过Ant工具进行整合。 
+4.1.1  Ant Task的属性及功能 
+  Ant任务包括antfile、dir、target、output、inheritAll、inheritRefs这些属性，具体说明如下： 
+（1）antfile属性：在Ant任务中antfile属性的作用是指定要执行的构件文件的名称，可包含路径信息。例如，在projectA中执行projectB的构件文件。projectA的构件文件内容如下： 
+<?xml version="1.0"?> 
+<!-- 在projectA中执行projectB的构件文件   --> 
+<project name="porjectA" default="callProjectB"> 
+    <target name="callProjectB"> 
+        <echo message="In projectA calling projectB"/> 
+        <ant antfile="subfile/projectB.xml" /> 
+</target> 
+</project> 
+projectB存放于subfile目录下，具体内容如下： 
+hamg<?xml version="1.0"?> 
+<project name="porjectB" default="init"> 
+    <target name="init"> 
+        <echo message="In projectB"/> 
+    </target> 
+</project> 
+如果要通过projectA运行projectB的构件文件，那么可以在命令行执行：ant –buildfile projectA.xml，执行结果如图4.1所示。 
+
+图4.1  通过projectA运行projectB 
+从执行结果得知，antfile属性的作用相当于在Ant命令中指定-buildfile subfile/projectB. xml选项，只不过Ant任务提供了更方便的功能。如果antfile属性没设定，那么Ant任务会查找名称为build.xml的构件文件。当然antfile属性也可与dir属性结合使用，antfile指定文件名称，dir属性指定文件所在的目录。 
+（2）dir属性：在Ant任务中dir属性的作用是用于指定构件文件所在的目录。相当于指定了要执行的构件文件的basedir属性。在默认情况下如果dir属性没设定，那么会以当前执行的构件文件的根目录作为Ant任务的根目录。这个属性设定后，被执行的构件文件的basedir属性将取dir属性的值。下面把targetA.xml构件文件改写为通过dir属性指定目录以实现同样的功能，具体的构件文件内容如下： 
+<?xml version="1.0"?> 
+<project name="porjectA" default="callProjectB"> 
+    <!-- //调用projectB.xml构件文件  --> 
+    <target name="callProjectB"> 
+        <echo message="In projectA calling projectB"/> 
+        <ant antfile="projectB.xml"  dir=” subfile” /> 
+    </target> 
+</project> 
+（3）target属性：在Ant任务中target属性的作用是指定被执行的构件文件中所要执行的target，如果target属性没有设定，那么将会执行被调用的构件文件中的默认target（也就是project元素中指定default值）。这个属性相当于在命令行执行时指定要执行的target的选项。例如，在projectA1中调用projectB1，并执行projectB1中的target“target2”。编写projectA1.xml构件文件，内容如下： 
+<?xml version="1.0"?> 
+<project name="porjectA" default="callProjectB"> 
+    <target name="callProjectB"> 
+        <echo message="In projectA calling projectB"/> 
+         <!-- //通过ant 任务执行projectB.xml构件文件，指定执行target2这个target  --> 
+        <ant antfile="subfile/projectB.xml" target=" target2"/> 
+    </target> 
+</project> 
+被调用的projectB.xml构件文件的内容如下： 
+<?xml version="1.0"?> 
+<project name="porjectB" default="init"> 
+    <target name="init"> 
+        <echo message="In projectB"/> 
+    </target> 
+    <target name=”target2” > 
+        <echo message=”In projectB,execute target2” /> 
+    </target> 
+</project> 
+然后在命令行执行ant –f projectA1.xml以查看Ant任务的执行效果，执行结果如图4.2所示。 
+
+图4.2  项目调用结果 
+在执行结果中可看出，在targetA.xml中通过Ant任务执行了targetB.xml中的target2这个target。 
+（4）output属性：在Ant任务中output属性主要用于指定Ant工具执行时的信息输出，可定位到控制台或定位到文件中。当输出信息到文件中时，相当于在命令行指定-logfile<file>,-l<file>选项。如果指定了dir属性，那么被指定的输出文件的位置是相对于dir属性指定的目录的，当然也可以通过绝对路径指定。例如，把projectA中的输出信息定位到out.log文件，构件文件的内容如下： 
+<?xml version="1.0"?> 
+<project name="porjectA" default="callProjectB"> 
+    <target name="callProjectB"> 
+        <echo message="In projectA calling projectB"/> 
+         <!-- //输出信息到out.log中  -- > 
+        <ant antfile="subfile/projectB.xml"  output="out.log"/> 
+    </target> 
+</project> 
+（5）inheritAll属性：在Ant任务中inheritAll属性用于指定被调用的构件文件的project元素中可使用当前project元素中的属性。这个属性类似于Java程序中类的继承关系。默认时inheritAll属性取值为true。 
+（6）inheritRefs属性：在Ant任务中，如果设定了inheritRefs属性为true，那么被调用的构件文件中的project元素可引用当前project元素中的reference（参考）任务。 
+Reference任务的作用是把当前的属性复制到被调用的Ant project中使用。References任务包含两个属性，如下：
+  ● refid属性：这个属性代表当前project中的属性id。 
+  ● torefid属性：用于指定在被调用的project中的引用id。 
+Reference的使用例子如下： 
+<reference refid="path1" torefid="path2"/> 
+<!-- // 把当前project中的path1属性传递给被调用的project中使用， 
+在被调用project中通过path2引用这个属性。  -- > 
+4.1.2  使用Ant Task整合子项目的实例 
+在实际的项目中，大的项目都会拆分成独立的几个子项目，开发完后再整合在一起。这样做有利于项目的独立测试和长期维护。如果用Ant工具来构建项目，那么Ant任务就派上用场了。这里以实例来学习Ant任务的作用。 
+1．指定子项目 
+<ant antfile="subproject/subbuild.xml" dir="subproject" target="compile"/> 
+<!-- //指定子项目构件文件及根目录，同时指定要执行的target  --> 
+2．指定属性并在子项目中调用 
+<ant antfile="subproject/property_based_subbuild.xml"> 
+  <property name="param1" value="version 1.x"/> 
+  <property file="config/subproject/ default.properties "/> 
+</ant> 
+<!-- //由于在默认时inheritAll="true"，因此当前项目中定义的param1属性和属性文件default.properties都可以在子项目中引用。  --> 
+3．继承关系 
+假设在当前构件文件中定义了以下元素： 
+<path id="path1">     
+    ... 
+</path> 
+<path id="path2"> 
+    ... 
+</path> 
+… 
+<ant antfile="subbuild.xml" inheritrefs="true"/> 
+… 
+在被调用的subbuild.xml中定义了<path>类型的path1但没定义<path>类型的path2。那么刚执行构件文件时，被调用的Ant project中的path1不会被覆盖，但path2可以被调用。如果指定inheritrefs="false"，那么在被调用的project中既不会覆盖path1也不能引用path2。 
+当需要覆盖path1时可把Ant任务改为： 
+<ant antfile="subbuild.xml" inheritrefs="false"> 
+  <reference refid="path1"/> 
+</ant> 
+当需要引用当前project中的path1同时也要使用本身的path1，那可以通过reference做到，改写Ant任务为： 
+<ant antfile="subbuild.xml" inheritrefs="false"> 
+  <reference refid="path1" torefid="path2"/> 
+</ant> 
+这个任务的作用是，在被调用的project中建立对当前project中的path1的引用，并命名为path2。在被调用的project中可通过path2来引用。 
+
+4.2  AntCall Task：执行过程中调用并执行其他target 
+AntCall 任务的作用是允许在一个target的执行过程中调用并执行其他的target。例如，在打包项目前需要对项目进行编译，那么可以在打包项目的target中通过AntCall任务使得编译的target先执行。当然这种情况也可以通过target间设置depends属性来实现。AntCall任务必须在target元素内执行，这个任务不能在target元素外执行。 
+4.2.1  AntCall Task属性及功能 
+AntCall 任务主要包括target，inheritAll和inheritRefs 3个属性，具体说明如下： 
+（1）target属性：在AntCall任务中target属性的作用是指定要被调用执行的target，通过名称指定这个target属性是必需的。值得注意的是，当通过AntCall任务调用的target存在依赖的target（depends中指定了target），则depends属性中被指定的target也会被执行。 
+（2）inheritAll属性：用于指定是否继承当前的属性。默认时为true，代表被调用的target可使用这些属性。 
+（3）inheritRefs属性：用于指定是否覆盖reference属性或者是否建立一个对当前reference属性的引用。在默认的情况下，AntCall任务不会覆盖reference属性，除非把inheritRefs属性设为true。默认时inheritRefs属性为false。 
+4.2.2  利用AntCall Task实现target间调用的实例 
+利用AntCall任务来实现target间的相互调用。下面编写构件文件antcallSample.xml，实现在targetA中调用执行targetB。构件文件内容如下： 
+<?xml version="1.0"?> 
+<project name="antcallSample" default="targetA"> 
+    <target name="targetA"> 
+        <echo message="In targetA calling targetB"/> 
+        <!-- //调用targetB  --> 
+<antcall target="targetB" > 
+        </antcall> 
+        <echo message="After call targetB" /> 
+    </target> 
+    <target name="targetB" > 
+        <echo message="In targetB" /> 
+    </target> 
+</project> 
+保存构件文件，然后在命令行执行命令ant –f antcallSample.xml，执行结果如图4.3    所示。 
+
+图4.3  antcallSample.xml 
+上面的例子的作用是在执行targetA的过程中执行targetB。如果targetB中设定了depends属性，则depends属性中指定的target也会被执行。修改antcallSample.xml如下，以演示depends的依赖关系： 
+<?xml version="1.0"?> 
+<project name="antcallSample" default="targetA"> 
+    <target name="init" > 
+        <echo message="In init target"/> 
+    </target> 
+    <target name="targetA"> 
+        <echo message="In targetA calling targetB"/> 
+        <antcall target="targetB" > 
+        </antcall> 
+        <echo message="After call targetB" /> 
+    </target> 
+    <target name="targetB" depends="init"> 
+        <echo message="In targetB" /> 
+    </target> 
+</project> 
+保存构件文件，然后再次执行ant –f antcallSample.xml命令，执行结果如图4.4所示。 
+
+图4.4  antcallSample.xml命令的执行结果 
+上面的执行结果表明：在执行targetA时调用targetB，由于targetB依赖于init target。因此init target先于targetB执行。 
+4.2.3  利用AntCall Task实现target间调用时传递参数的实例 
+当需要从一个target传递参数到被调用的target时，可以使用<param> 类型进行传递。当然也可以在target中定义property来实现，与Java中的方法调用时传递参数相似。修改antcallSample.xml以实现传递参数的功能，内容如下： 
+<?xml version="1.0"?> 
+<project name="antcallSample" default="targetA"> 
+    <target name="init" > 
+        <echo message="In init target"/> 
+    </target> 
+    <target name="targetA"> 
+        <echo message="In targetA calling targetB"/> 
+          <!-- //通过property传递  --> 
+        <property name="prop" value="prop property" />  
+        <antcall target="targetB" > 
+               <!-- // 通过antcall设定param实现  --> 
+            <param name="path1" value="path1 param" />  
+        </antcall> 
+        <echo message="After call targetB" /> 
+    </target> 
+    <target name="targetB" depends="init"> 
+        <echo message="In targetB" /> 
+        <echo message="path1=${path1}" /> 
+        <echo message="prop=${prop}" /> 
+    </target> 
+</project> 
+再次执行ant –f antcallSample.xml命令，执行结果如图4.5所示。 
+
+图4.5  antcallSample.xml 
+从执行结果可看出，通过property指定和通过AntCall中的param指定的属性都传递到targetB中。对于param 类型只有两个属性：name和value。由于AntCall任务中的inheritAll属性默认时为true，所以property能被targetB引用。如果targetB中也定义了相同的property，那么可以通过设置inheritRefs属性和reference类型进行覆盖。 
+
+4.3  Apply/ExecOn Task：通过Ant工具直接执行系统命令 
+Apply/ExecOn 任务的作用是，通过Ant工具直接执行系统使命。通过这个task执行的命令依赖于操作系统，而且只能在Ant支持的操作系统下执行。Ant支持Windows、Linux、UNIX、OS/2 Warp、Novell Netware 6和MacOS X。
+4.3.1  Apply/ExecOn Task属性及功能 
+（1）executable属性：用于指定要执行的命令，不带命令行参数，这个属性是必需的。 
+（2）dest属性：用于指定命令执行时目标文件的存放位置。 
+（3）spawn属性：用于指定是否在执行命令时产生输出信息。默认为false代表输出日志信息。如果指定了spawn属性为true，Ant将不会产生这个命令的日志输出。 
+（4）dir属性：用于指定执行命令所在的目录，在此目录下执行这个命令。 
+（5）relative属性：用于指定命令是否支持相对路径。默认为false，不支持相对路径，相对于当前根目录或dest属性设定的目录。 
+（6）forwardslash属性：用于设定文件路径是否支持斜线分隔符，尽管有些操作系统支持其他的分隔符。默认时为false，如果操作系统的分隔符为斜线，那么这个属性将被        忽略。 
+（7）os属性：列出允许执行这个命令的操作系统。 
+（8）output属性：指定把命令行执行的输出重定向到一个输出文件。如果错误信息没有重定向到特定文件，错误信息则将输出到这个文件中。 
+（9）error属性：指定一个文件用于接收错误的输出信息。从Ant 1.6后提供了这个     属性。 
+（10）logError属性：这个属性用于指定把错误的日志输出到Ant工具的日志信息中，也可以通过error属性指定错误的输出文件。 
+（11）append属性：指定是否可以输出到一个存在的文件或者覆盖存在的文件，默认为false。 
+（12）outputproperty属性：指定输出定向到的属性的名字，在属性中可定义一个文件，这样就可以把输出信息输出到文件中。 
+（13）errorproperty属性：用于指定把错误信息输出到的属性的名字。 
+（14）input属性：指定一个文件，从这个文件中读取属性，在执行命令时可以引用得到这些属性。 
+（15）inputstring属性：用于把inputstring属性指定的字符串传递给执行的命令。 
+（16）resultproperty属性：这个属性用于存放命令执行后所返回的结果。 
+（17）timeout属性：设定一个时间，如果这段时间内命令没执行完毕，则这个命令会被中断。 
+（18）failonerror属性：这个属性用于指定是否出错时命令终止。如果属性取值为true，那么在执行的命令退出的同时返回一个不为0的代码，则构建进程将会中止。 
+（19）failifexecutionfails属性：用于指定当不能执行程序时是否中止构建命令的执行，默认为true。 
+（20）skipemptyfilesets属性：当指定的目录中没有文件，则构建命令将不会被执行。 
+（21）parallel属性：如果属性为true，则构建命令只执行一次，并把附加的文件作为命令参数。如果为false则每一个附加的文件都会执行一次这个命令。默认为false。 
+（22）type属性：指定传给要执行的命令的参数类型，可为file（文件）、dir（目录）、path（路径）。默认为file。 
+（23）newenvironment属性：如果当前的环境变量被声明，将不传递旧的环境变量，默认为false。 
+（24）vmlauncher属性：默认为true，通过Java虚拟机的特性来执行构件文件。如果为false，则通过操作系统本身的脚本功能去执行。 
+（25）resolveExecutable属性：默认为false，如果设为true，那么命令会在project的根目录下执行。如果在UNIX或Linux下只允许用户在自己的路径下执行这个命令，那么要把这个属性设为false。 
+（26）maxparallel属性：设定一个最大的平行值，用于指定一次执行的源文件的最大数目。如果设为<0代表没有限制。默认为没有限制。 
+（27）addsourcefile属性：是否自动添加源文件名到执行的命令中，默认为true。 
+（28）verbose属性：是否输出命令执行时的概要信息，默认为false不输出。 
+（29）ignoremissing属性：是否忽略不存在的文件，默认为true。 
+（30）force属性：是否通过timestamp来对target文件进行对比。默认为false。 
+4.3.2  Apply/ExecOn Task可使用的参数 
+执行Apply/ExecOn 任务时可以通过Ant提供的一些内置类型来简化操作，类似于参数传递的作用。可使用的Ant类型有： 
+  ● FileSet：可以通过<fileset>元素来设定文件集合，在任务中引用这个FileSet。 
+  ● FileList：可以通过一个或多个FileList来指定文件列表，然后在Apply/ExecOn Task中进行引用。 
+  ● Dirset：通过Dirset定义目录集合，然后在Apply/ExecOn Task中进行引用。 
+  ● Arg：可通过<arg>类型指定命令行参数，然后在Apply/ExecOn Task中使用。 
+  ● Mapper：通过Mapper类型可以指定dest属性的文件的映射关系。 
+  ● Srcfile：通过参数指定源文件，在<arg>的后面使用，<arg>参数的值为Srcfile指定的源文件。 
+  ● Targetfile：与Srcfile作用相似，用于指定目录文件的参数。 
+  ● Env：指定一个环境变量，并在命令行中传递，以<env>类型的形式使用。 
+4.3.3  通过Apply/ExecOn Task执行Linux下ls命令 
+  （显示文件信息）的实例 
+在Linux系统中，可以通过ls的shell命令显示文件的详细信息。用Ant工具也可以执行ls这个功能。具体的例子如下： 
+<apply executable="ls"> 
+  <arg value="-l"/> 
+  <fileset dir="/tmp"> 
+    <patternset> 
+      <exclude name="**/*.txt"/> 
+    </patternset> 
+  </fileset> 
+  <fileset refid="other.files"/> 
+</apply> 
+这个例子的作用是：调用ls–l的shell命令，列出/tmp目录下的所有非.txt文件和所有id为other.files的FileSet类型所指定的文件的详细信息。 
+4.3.4  使用Mapper、Srcfile类型的实例 
+下面是一个通过Apply/ExecOn任务使用Mapper和Srcfile类型的例子，具体内容如下： 
+<apply executable="cc" dest="src/C" parallel="false"> 
+  <arg value="-c"/> 
+  <arg value="-o"/> 
+  <targetfile/> 
+  <srcfile/> 
+  <fileset dir="src/C" includes="*.c"/> 
+  <mapper type="glob" from="*.c" to="*.o"/> 
+</apply> 
+这个例子的作用是：通过Mapper指定为每个比.o文件新的.c文件执行cc –c –o targetfile sourcefile命令。在这个命令中用.o文件的名称替换targetfile（目标文件），用.c文件的名称替换sourcefile 
+
+4.4  Chmod Task：改变Linux/UNIX系统的文件权限 
+在UNIX和Linux系统下要改变文件的权限，可以使用chmod的shell命令。例如：chmod 777 abc.txt。设置abc.txt文件的权限为“所有人有对文件操作的所有权限”。在Ant工具中可以通过Chmod任务方便地实现这些功能。在Chmod任务中可以引用FileSet和DirSet类型指定的文件集合和目录集合。 
+4.4.1  Chmod Task属性及功能 
+Chmod任务包括如下属性： 
+（1）file：用于指定即将被改变权限的文件名称。 
+（2）dir：用于指定这个目录下的所有文件的权限将要被改变。在Chmod任务中dir属性和file属性两者必须选择其中一个。 
+（3）perm：用于指定文件的新权限。 
+（4）includes：用于指定一个或多个文件的匹配模式，只有符合这些模式的文件的权限才会被改变。可用逗号符或空格符进行分隔。 
+（5）excludes：与includes属性的作用正好相反，用于指定一个或多个文件匹配模式，只有不符合这些模式的文件的权限才会被改变。可用逗号符或空格符进行分隔。 
+（6）defaultexcludes：用于指定是否不包括Ant工具默认不包含的文件匹配模式。可取值为yes或no。忽略此属性时代表不包含默认的不包含的文件模式。 
+Ant工具默认不包含的文件模式有：**/*~，**/#*#，**/.#*，**/%*%，**/._*， **/CVS，**/CVS/**，**/.cvsignore，**/SCCS，**/SCCS/**，**/vssver.scc，**/.svn，**/.svn/**，**/.DS_Store。 
+（7）parallel：用于指定是否为每个包含的文件独立执行Chmod命令，默认为true。 
+（8）type：可取值为file、dir或both。取值file表示只改变文件的权限；若取值dir表示只改变目录的权限；若取值both则代表改变文件和目录两者的权限。 
+（9）maxparallel：用于指定一次执行Chmod命令的最大值。设为<=0代表不限制，默认为不限制。 
+（10）verbose：用于指定在执行命令后是否输出这个命令的执行信息。默认为false不输出。 
+4.4.2  通过Ant改变Linux/UNIX文件和目录权限的例子 
+在Linux和UNIX下通常通过Chmod命令来改变文件或目录的权限，Ant工具的Chmod任务也能实现同样的功能。例如，改变start.sh文件的权限让所有人对此文件具有读和执行的权限。 
+<chmod file="${dist}/start.sh" perm="ugo+rx"/> 
+所有用户对${dist}/start.sh文件都具有读和执行的权限。如果只有文件的所有者才具有读、写和执行权限，那么可以编写以下程序： 
+<chmod file="${dist}/start.sh" perm="o+rx"/> 
+当然也可以用数据来表示权限，上面的程序可改为： 
+<chmod file="${dist}/start.sh" perm="700"/> <!--  //与上面程序作用相同， 
+文件的所有者才具有读、写和执行的权限  --> 
+当然也可以通过FileSet和DirSet类型实现更复杂的功能，例如： 
+<chmod perm="go-rwx" type="file"> 
+  <fileset dir="/web"> 
+    <include name="**/*.cgi"/> 
+    <include name="**/*.old"/> 
+  </fileset> 
+  <dirset dir="/web"> 
+    <include name="**/private_*"/> 
+  </dirset> 
+</chmod> 
+这个例子的作用是让不是文件的所有者可以访问cgi脚本。文件的权限将会改变的文件有：所有/web目录下的.cgi和.old文件，所有以private_*开头的文件或目录名以private_*开头的目录下的文件。 
+
+4.5  Copy Task：对文件和目录进行复制 
+Copy 任务把一个或多个文件复制到指定的目录下。但要注意的是，如果目标目录下具有同名的文件，那么只有当源文件相对于目标文件更新时，Ant工具才会复制这个文件。在Copy任务中可以使用FileSet类型来定义文件集合。
+4.5.1  Copy Task的属性及功能 
+Copy 任务具有以下属性： 
+（1）file：用于指定要复制的源文件。 
+（2）preservelastmodified：作用是使得复制后的文件与源文件的最后修改时间相同。默认为false。 
+（3）tofile：用于指定要复制到的文件。 
+（4）todir：用于指定要复制到的目标目录。todir和tofile只能使用其中一个属性。 
+（5）overwrite：用于指定是否需要覆盖目录和文件，不管文件是否比源文件新，都会覆盖。默认为false。 
+（6）filtering：用于指定在复制时是否使用构件文件的全局过滤器对文件进行过滤。默认为false。 
+（7）flatten：用于指定是否需要复制目录，如果为true代表把所有的文件复制到todir属性设定的目录下。默认为false，复制目录。 
+（8）includeEmptyDirs：用于指定是否复制空目录。默认为true。 
+（9）failonerror：用于指定当遇到错误时是否停止执行。默认为true。 
+（10）verbose：用于指定当复制文件时是否记录日志信息。 
+（11）encoding：用于设定复制文件时的编码或文件过滤器使用的编码方式。默认时使用Java虚拟机的编码方式。 
+（12）outputencoding：指定写文件时的编码方式。默认时使用Java虚拟机的编码方式。 
+（13）enablemultiplemappings：用于设定是否允许多个映射。默认为false。 
+（14）granularity：用于指定一个文件修改时间的毫秒数据的允许误差。因为不是所有的文件系统的修改时间都是精确到毫秒数。默认时为0，如果为DOS系统则为2。 
+4.5.2  通过Copy Task实现文件和目录复制功能实例 
+不管是对程序进行打包还是一般的文件操作，基本上都离不开复制功能。通过Ant工具的Copy任务可以让程序在Windows和Linux/UNIX下对文件和目录进行复制操作。例如： 
+（1）对单个文件进行复制： 
+<copy file="myfile.txt" tofile="mycopy.txt"/> 
+这个例子的作用是在当前目录复制myfile.txt，并把复制的文件命名为mycopy.txt。当需要把文件复制到别外的目录时可以这样编写： 
+<copy file="myfile.txt" todir="../some/other/dir"/> 
+这个例子的作用是把文件复制到与当前目录同级的some目录的/other/dir子目录下。这里“..”代表相对路径（当前目录的上一级目录）。 
+（2）对文件目录进行复制： 
+<copy todir="../new/dir"> 
+    <fileset dir="src_dir"/> 
+  </copy> 
+这个例子的作用是把src_dir目录复制到../new/dir目录下。有时对文件进行复制时需要对文件进行备份。下面举一个复制文件时对文件进行备份的例子。 
+<copy todir="../backup/dir"> 
+  <fileset dir="src_dir"> 
+    <exclude name="**/*.java"/> 
+  </fileset> 
+  <globmapper from="*" to="*.bak"/> 
+</copy> 
+这个例子的作用是把src_dir目录及其子目录下所有非Java文件复制到../backup/dir目录下，并重命名为bak文件，以作备份。 
+4.5.3  在执行Copy Task时使用文件过滤的实例 
+下面是一个复制文件的同时替换文件中的特殊符号的例子： 
+<copy todir="../backup/dir"> 
+    <fileset dir="src_dir"/> 
+    <filterset> 
+      <filter token="TITLE" value="Foo Bar"/> 
+    </filterset> 
+  </copy> 
+这个例子的作用是把src_dir目录下的所有文件复制到../backup/dir目录，并在所有文件中查找并替换@TITLE@为Foo Bar。当要进行新产品发布时通过需要替换文件中的版本信息和时间信息。 
+说明：在Ant工具中还提供了copydir和copyfile这两个特定的任务，分别用于对目录和文件进行复制。但自从有了Copy任务后，这两个任务已过期，不建议再使用，应该统一使用Copy任务。 
+4.6  Delete Task：对文件和目录进行删除 
+Delete 任务可用于删除一个或多个文件，或删除一个或多个目录和目录下的文件。默认时不会删除空目录，要删除空目录可以设定includeEmptyDirs属性为true。在Delete任务中可以使用FileSet和DirSet类型。 
+4.6.1  Delete Task的属性及功能 
+Delete任务包括以下属性： 
+（1）file：用于指定要删除的文件的名称，可以为相对路径或绝对路径。 
+（2）dir：指定一个将要被删除的根目录。这个目录下的子目录及文件将可能被删除。dir属性和file属性两者必须指定其一。 
+（3）verbose：作用是指定是否在命令行中输出被删除的文件的名称。默认为false。 
+（4）quiet：作用是指定当要被删除的文件或目录不存在时是否不显示提示信息。默认为false，代表要显示提示信息。 
+（5）failonerror：用于指定当出现错误时是否停止执行命令。 
+（6）includeemptydirs：表明当使用FileSet类型时是否删除空的目录。 
+（7）includes：用于指定将要删除的文件或目录的模式。可用逗号或空格符进行分隔。 
+（8）includesfile：用于指定要删除的文件的模式。已不建议使用。 
+（9）excludes：用于指定一个或多个文件模式或目录模式。这些符合条件的文件和目录将不被删除。 
+（10）excludesfile：用于指定将不被删除的文件模式，已不建议使用。 
+（11）defaultexcludes：用于指定是否使用Ant默认的default excludes模式，已不建议使用。 
+（12）deleteonexit：用于指定是否采用Java File类中的deleteOnExit()方法进行判断，如果使用这个方法，那么仅当存在文件时才进行删除，默认取值为false。 
+4.6.2  在执行Delete Task时使用文件过滤的实例 
+（1）删除单个文件的实例： 
+<delete file="/lib/ant.jar"/> 
+这个例子的作用是删除lib目录下的ant.jar文件。 
+（2）删除目录的实例： 
+<delete dir="lib"/> 
+这个例子的作用是删除lib目录，包括这个目录的所有子目录及文件，可以通过include或exclude类型指定删除的部分文件，而不是目录下的所有文件。 
+（3）删除所有备份文件和空的目录的例子： 
+<delete includeEmptyDirs="true"> 
+    <fileset dir="." includes="**/*.bak"/> 
+  </delete> 
+这个例子的作用是删除当前目录以及其子目录下的所有.bak文件，同时也删除所有空的目录。 
+4.7  Echo Task：输出系统信息 
+Echo任务的作用是根据logger（日志）或listener（监听器）的级别输出相应的信息。相当于Java中的System.out来输出信息。Echo任务包含以下属性： 
+（1）message：用于定义要输出的信息。这个属性是必需的。 
+（2）file：用于定义一个文件。这个文件用于接收message定义的输出信息，当设定为把信息输出到接收文件时才起作用。 
+（3）append：用于指定信息是否输出到指定的文件。默认为false。 
+（4）level：用于指定这个信息的级别。可取值为error，warning，info，verbose或debug。 
+Echo任务的使用比较简单。例如定义一个信息的输出，代码如下： 
+<echo message=" This is a simple message,out print by echo task! " /> 
+当需要把信息输出到具体的文件中时，可以这样编写Echo Task： 
+<echo message=" This is a simple message,out print by echo task! " file="/logs/messge.log" append="true"/> 
+这个例子的作用是，把信息输出到/logs/message.log文件中，而不是直接输出到命令行。 
+4.8  Mkdir Task：创建目录 
+Mkdir 任务的作用是创建目录。可用于Windows或Linux下建立目录。一个有趣的地方是，这个命令在Linux和Windows下相同，建立一个目录都可以通过Mkdir+目录名称来实现。Mkdir 任务只有一个属性dir，dir属性用于指定要创建的目录名称。可为相对路径也可以为绝对路径。 
+Mkdir的用法比较简单，例如在当前目录下创建一个名为dist的子目录（用于项目发布）： 
+<property name="dist" value="dist" /> 
+<mkdir dir="${dist}"/> 
+虽然Mkdir任务相对简单，但Mkdir很有用，特别在创建文件前对目录进行验证。 
+4.9  Move Task：移动文件和目录 
+Move 任务用于移动文件和目录，默认时Move任务会覆盖目标文件或目录（如果目标文件或目录存在）。当关闭overwrite时，Move任务只会移动源文件比目标文件新的文件，或者目标文件不存在时才移动。在Move任务中可以引用FileSet类型。 
+4.9.1  Move Task的属性及功能 
+Move 任务具有以下属性： 
+（1）file：用于指定要移动的文件或目录。 
+（2）preservelastmodified：用于指定移动后的文件的最后修改时间与源文件相同。 
+（3）tofile：作用是指定移动后的文件新名称和位置。 
+（4）todir：作用是指定文件目录的目标位置。 
+（5）overwrite：用于设定当源文件的最后修改时间大于目标文件的最后修改时间时，是否用源文件覆盖目标文件。默认为true。 
+（6）filtering：用于定义在移动时是否允许符号过滤。 
+（7）flatten：作用是忽略目录结构。把各层目录下的文件移动到同一个目录下。默认为false。 
+（8）includeEmptyDirs：用于指定在移动时是否忽略空目录。默认为false。 
+（9）failonerror：用于定义当出现错误时是忽略并继续执行，还是当遇到错误时就停止执行命令。 
+（10）verbose：用于指定当文件移动时是否输出日志信息。 
+（11）encoding：用于定义在移动文件时使用的过滤器的编码方式。 
+（12）outputencoding：用于定义在写文件时使用的编码方式。 
+（13）enablemultiplemapping：用于指定是否可以使用多个映射。默认时只使用一个   映射。 
+（14）granularity：用于指定一个文件修改时间的毫秒数据的允许误差。因为不是所有的文件系统的修改时间都精确到毫秒数。默认时为0，如果是DOS系统则为2。 
+4.9.2  使用Move Task实现移动文件和目录功能的实例 
+（1）移动单个文件的实例： 
+<move file="file.orig" tofile="file.moved"/> 
+这个例子的作用是重命名file.org文件为file.moved。把文件移动到目录的例子如下： 
+<move file="file.orig" todir="dir/to/move/to"/> 
+这个例子的作用是把文件file.org移动到dir/to/move/to目录下。 
+（2）移动目录的实例： 
+<move todir="new/dir/to/move/to"> 
+    <fileset dir="src/dir"/> 
+  </move> 
+这个例子的作用是把src/dir目录移动到new/dir/to/move/to目录。在Ant 1.6.3版本后，可以使用以下file属性来指定目录从而实现上面目录移动的功能： 
+<move file="src/dir" tofile="new/dir/to/move/to"/> 
+（3）通过Mapper功能对文件进行备份的例子： 
+<move todir="my/src/dir" includeemptydirs="false"> 
+    <fileset dir="my/src/dir"> 
+      <exclude name="**/*.bak"/> 
+    </fileset> 
+    <mapper type="glob" from="*" to="*.bak"/> 
+  </move> 
+这个实例的作用是把my/src/dir目录下的所有文件重命名为.bak的备份文件（.bak文件除外）。 
+
+4.10  Zip Task：创建zip文件 
+Zip这个任务用于实现打包zip文件的功能。在Zip任务里可以直接嵌套使用FileSet类型、include类型、exclude类型等，在这些文件类型中还可以对文件进行过滤。 
+4.10.1  Zip Task的属性及作用 
+Zip任务具有以下属性，用于描述将要打包为zip的文件和目录等： 
+（1）destfile：用于指定将要打包的zip文件。 
+（2）zipfile：也用于指定要打包的zip文件，但已不建议使用，应该使用destfile属性来代替。zipfile属性和destfile属性两者必须选择其一。 
+（3）basedir：用于指定打包zip文件的目录。 
+（4）compress：用于指定是否使用压缩的形式来保存数据。默认为true（对数据进行压缩）。 
+（5）keepcompression：用于指定已压缩的zip文件保持原先的压缩格式。默认为false。 
+（6）encoding：用于指定Zip任务里的文件名称的编码方式。默认时采用操作系统的编码方式。 
+（7）filesonly：用于指定是否在Zip任务中只存储文件。默认为false。 
+（8）includes：用于指定一个或多个在Zip任务中要包含的文件。可以使用逗号或空格符进行分隔。当这个属性被忽略时代表zip将包含所有文件。 
+（9）includesfile：用于指定zip文件中要包含的文件的名称。 
+（10）excludes：用于指定一个或多个在Zip任务中不被包含的文件。可以使用逗号或空格符进行分隔。当这个属性被忽略时代表Zip任务将包含所有文件。 
+（11）excludesfile：用于指定在Zip任务中不被包含的文件的名称。 
+（12）defaultexcludes：用于定义是否在Zip中不包含Ant默认要排除的文件模式。可取值为yes或no。忽略时代表使用默认的排除文件模式，将不包含符合这些模式的文件。 
+（13）update：用于定义是否更新或覆盖目标文件，当目标文件已存在时。默认为false。 
+（14）whenempty：用于指定当没有满足打包条件的文件时的处理方式。可取值为fail、skip和create。fail代表创建zip失败，skip代表忽略不处理，create代表依然创建zip文件。默认为skip。 
+（15）duplicate：定义当出现重复文件时的处理方式。可取值add、preserve和fail。add代表依然添加（覆盖）文件，preserve代表不打包重复文件，fail代表将打包失败。默认      为add。 
+（16）roundup：用于指定打包zip文件时文件的修改时间是否采用下一个连续的秒数。默认为true。 
+（17）comment：作用是在zip文件中加上注释。 
+4.10.2  使用Zip Task打包zip文件的实例 
+在Zip任务中可以使用ZipFileSet类型定义一个或多个zip格式的文件集合，然后在Zip任务中引用。 
+（1）打包zip文件的实例，如下： 
+<zip destfile="${dist}/manual.zip" 
+       basedir="htdocs/manual" 
+       includes="api/**/*.html" 
+       excludes="**/todo.html" 
+  /> 
+这个实例的作用是打包htdocs/manual目录下的文件，并且命名为manual.zip。在这个zip文件中只包含htdocs/manual/api目录或其子目录下的所有.html文件，但不包含其中文件名为todo.html的文件。 
+（2）使用ZipFileSet类型的Zip任务实例，内容如下： 
+<zip destfile="${dist}/manual.zip"> 
+    <zipfileset dir="htdocs/manual" prefix="docs/user-guide"/> 
+    <zipfileset dir="." includes="ChangeLog27.txt" fullpath="docs/ChangeLog.txt"/> 
+    <zipfileset src="examples.zip" includes="**/*.html" prefix="docs/examples"/> 
+  </zip> 
+这个例子的作用是，把htdocs/manual目录下的所有文件及子目录打包到docs/user-guide目录下；把当前目录下的ChangeLog27.txt文件打包为docs/ChangeLog.txt；同时把example.zip下的所有.html文件打包到docs/examples下。打包后的zip文件中包含文件的例子（假设index.html文件和ChangeLog27.txt文件存在）： 
+docs/user-guide/html/index.html 
+docs/ChangeLog.txt 
+docs/examples/index.html 
+（3）使用zipgroupfileset的Zip任务实例，内容如下： 
+<zip destfile="${dist}/manual.zip"> 
+    <zipfileset dir="htdocs/manual" prefix="docs/user-guide"/> 
+    <zipgroupfileset dir="." includes="examples*.zip"/> 
+  </zip> 
+这个例子的作用是，把htdocs/manual下的所有目录及文件打包到docs/user-guide下；同时包含所有zip文件名为example*.zip的文件，例如example1.zip。 
+4.11  LoadProperties：加载属性文件 
+为了便于维护和细分功能。通常会把Ant中定义的property元素放到一个或多个.properties文件中定义，然后在Ant中引入这些属性。在这时就需要一个能导入.properties文件的功能。Loadproperties任务就能很好地实现这个需要。把property文件中的property元素导入Ant构件文件中。 
+4.11.1  LoadProperties Task的属性及功能 
+LoadProperties任务包含以下功能： 
+（1）srcFile：定义要导入的属性文件。 
+（2）resource：也用于指定属性文件的名称。resource属性和srcFile属性两者必须指定其一。 
+（3）encoding：指定导入文件时的编码方式。 
+（4）classpath：指定查找resource指定的文件的路径。 
+（5）classpathref：用于指定一个classpath类型的引用，当在查找resource指定的文件时使用。 
+4.11.2  LoadProperties Task加载属性文件的实例 
+这里举一个文件复制的例子。假设现在需要把src目录下的所有文件复制到dest目录下，这里使用copy.properties文件来定义源文件目录和目标目录的位置，然后在Ant工具中使用copy.properties中定义的属性。当文件目录改变时，只需要改变copy.properties中的属性，而不需要改变build.xml文件。编写程序如下： 
+copy.properties文件内容： 
+copy.src=src 
+copy.dest=dest 
+定义源文件目录和目标文件目录的位置。这里使用相对位置，指定前目录下的src和dest子目录，当然也可以使用绝对位置。编写build.xml文件如下： 
+<?xml version="1.0"?> 
+<project name="loadpropertiesSample" default="copyFile"> 
+    <!-- // 导入属性文件  --> 
+     <loadproperties srcFile="copy.properties"> 
+       <!-- // 定义文件过滤器 -- > 
+<filterchain> 
+        <linecontains> 
+          <contains value="copy."/> 
+        </linecontains> 
+      </filterchain> 
+    </loadproperties> 
+    
+    <!-- //复制文件  --> 
+    <target name="copyFile" > 
+        <copy todir="${copy.dest}"> 
+            <fileset dir="${copy.src}"/> 
+        </copy> 
+    </target> 
+</project> 
+这里定义了一个文件行的过滤器，在导入属性时只导入名称为copy.开头的属性，按行过滤。在命令行执行Ant命令，结果如图4.6所示。 
+
+图4.6  使用LoadProperties任务导入属性 
+4.12  Tstamp Task：获取并格式化日期或时间 
+Tstamp任务的作用是设定当前日期和时间的格式，可在target中使用。默认时日期的格式为yyyyMMdd（例如：20060516）。默认的时间格式为hhmm（例如：12:00）。默认时Ant工具设定TODAY（今天）格式为MMMM dd yy（例如：May 05 06）。这些格式与Java的日期格式相同。 
+4.12.1  Tstamp Task的属性及功能 
+Tstamp 任务包含以下属性： 
+（1）property：用于定义一个属性名称，通过这个属性可以得到Tstamp格式化后的日期或时间。 
+（2）pattern：用于设定要格式化时间或日期的格式，与Java中的SimpleDateFormat类中的格式相同。 
+（3）timezone：用于指定格式化时的时区，与Java中的timezone类中定义的相同。 
+（4）unit：用于设定与当时时间相差的单位。可设为millisecond（毫秒）、second（秒）、minute（分钟）、hour（小时）、day（日）、week（周）、month（月）和year（年）。 
+（5）offset：用于设定与当前时间相差的值，单位由unit设定。 
+（6）locale：用于指定格式化的locale值（不同国家和语言有不同的值）。与Java中的Locale类指定的i18n国际化功能相同。用不同国家的日期格式。 
+4.12.2  通过Tstamp Task格式化日期和时间的例子 
+用Tstamp格式化日期的时间的例子如下： 
+<?xml version="1.0"?> 
+<project name="timestamp" default="timestampTarget"> 
+  <!-- //定义不同的日期格式   --> 
+<tstamp> 
+    <format property="TODAY_UK" pattern="d-MMMM-yyyy" locale="en"/> 
+  </tstamp> 
+  <tstamp> 
+    <format property="TODAY_CN" pattern="d-MMMM-yyyy" locale="zh"/> 
+  </tstamp> 
+  <tstamp> 
+      <format property="touch.time" pattern="MM/dd/yyyy hh:mm aa" offset="-5" unit="hour"/> 
+  </tstamp> 
+     <!-- //输出的日期格式定义  --> 
+    <target name="timestampTarget" > 
+        <echo message="${DSTAMP}"/> 
+        <echo message="${TODAY_UK}" /> 
+        <echo message="${TODAY_CN}" /> 
+        <echo message="${touch.time}" /> 
+    </target> 
+</project> 
+保存文件为timestamp.xml，然后在命令行中运行ant –f timestamp.xml。执行结果如    图4.7所示。 
+
+图4.7  格式化日期和时间 
+这个例子的作用是： 
+  ● 通过${DSTAMP}获取Ant默认的日期格式。结果为20060708。 
+  ● 设定日期格式为d-MMMM-yyyy且使用英文语言。结果为8-July-2006。 
+  ● 设定日期格式为d-MMMM-yyyy且使用中文语言。结果为8-七月-2006。 
+  ● 设定日期和时间格式为MM/dd/yyyy hh:mm aa，同时设定时间为当前时间减去5个小时。结果为07/08/2006 04:46 下午，执行时间21:46。 
+4.13  小    结 
+在本章中，详细地讲述了Ant工具中的常用的核心任务。通过这些任务可以实现程序的自动构建、文件系统管理、打包zip程序等功能。从Ant任务的讲解中可以更深刻地认识到target、task和type之间的关系。可以把Ant type比作Java中的基本类型和对象类型，可使用Ant type来实现特定的功能，是功能的基本单位；task相当于Java程序中的方法；而target就相当于Java中的一个类，在类中包含了一个或多个方法（task）。
